@@ -1,0 +1,17 @@
+{
+  "name": "nau-market",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A simple student marketplace using Express, React, and PostgreSQL.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env app.js"
+  },
+  "dependencies": {
+    "@babel/standalone": "^7.28.0",
+    "ejs": "^7.0.2",
+    "express": "^5.1.0",
+    "pg": "^8.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

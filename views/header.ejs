@@ -1,0 +1,30 @@
+<header>
+  <a class="site-name" href="/">NAU Market</a>
+  <nav aria-label="Main navigation">
+    <details class="menu">
+      <summary>☰ Menu</summary>
+      <div class="menu-links">
+        <a href="/">Home</a>
+        <a href="/new-listing">New Listing</a>
+        <%
+          if (user)
+          {
+        %>
+          <a href="/profile">View Profile</a>
+          <form action="/logout" method="post">
+            <button type="submit">Logout</button>
+          </form>
+        <%
+          }
+          else
+          {
+        %>
+          <a href="/signin">Sign In</a>
+          <a href="/signup">Sign Up</a>
+        <%
+          }
+        %>
+      </div>
+    </details>
+  </nav>
+</header>

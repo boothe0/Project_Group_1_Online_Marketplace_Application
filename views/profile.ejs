@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= profile.name %>’s Profile</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <%- include('header') %>
+  <main class="form-page">
+    <div class="profile-avatar" aria-hidden="true"><%= profile.name.charAt(0).toUpperCase() %></div>
+    <h1><%= profile.name %>’s Profile</h1>
+    <p class="intro">Your NAU Market account details.</p>
+    <dl class="profile-details">
+      <dt>User ID</dt>
+      <dd><%= profile.user_id %></dd>
+      <dt>Name</dt>
+      <dd><%= profile.name %></dd>
+      <dt>Email</dt>
+      <dd><%= profile.email %></dd>
+    </dl>
+    <form action="/profile" method="post">
+      <label for="bio">Bio</label>
+      <textarea id="bio" name="bio" rows="5" maxlength="500" placeholder="Tell other students a little about yourself."><%= profile.bio %></textarea>
+      <button type="submit">Save Bio</button>
+      <p role="status"><%= message %></p>
+    </form>
+    <a href="/">Back To The Marketplace</a>
+  </main>
+</body>
+</html>
