@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
@@ -70,21 +72,40 @@ app.get('/scripts/babel.js', (req, res) =>
 });
 
 // get all listings for the homepage
+// get all listings for the homepage
 app.get('/api/listings', async (req, res) =>
 {
-  try
-  {
-    if (database)
+    try
     {
-      const result = await database.query('SELECT * FROM listings ORDER BY id DESC');
-      return res.json(result.rows);
+        if (database)
+        {
+            const result = await database.query(`
+                SELECT *,
+                    CASE
+                        WHEN image IS NOT NULL
+                        THEN 'data:' || mime_type || ';base64,' ||
+                             encode(image, 'base64')
+                        ELSE NULL
+                    END AS image_data
+                FROM listings
+                ORDER BY id DESC
+            `);
+
+            return res.json(result.rows.map((item) => ({
+                ...item,
+                image: item.image_data
+            })));
+        }
+
+        res.json(listings);
     }
-    res.json(listings);
-  }
-  catch (error)
-  {
-    res.status(500).json({ error: 'Could not load listings. Check your database connection.' });
-  }
+    catch (error)
+    {
+        console.error(error);
+        res.status(500).json({
+            error: 'Could not load listings. Check your database connection.'
+        });
+    }
 });
 
 // check the same form fields when creating or updating a listing
@@ -135,6 +156,12 @@ function validateListing(req, res, next)
   {
     return res.status(400).json({ error: 'Choose a photo that is 1 MB or smaller.' });
   }
+
+  const mimeType = `image/${photo[1]}`;
+
+  req.photoBytes = photoBytes;
+  req.mimeType = mimeType;
+
   next();
 }
 
@@ -156,8 +183,26 @@ app.get('/api/listings/:id', async (req, res) =>
     let listing;
     if (database)
     {
-      const result = await database.query('SELECT * FROM listings WHERE id = $1', [req.params.id]);
-      listing = result.rows[0];
+    const result = await database.query(
+        `SELECT *,
+            CASE
+                WHEN image IS NOT NULL
+                THEN 'data:' || mime_type || ';base64,' ||
+                    encode(image, 'base64')
+                ELSE NULL
+            END AS image_data
+        FROM listings
+        WHERE id = $1`,
+        [req.params.id]
+    );
+
+    listing = result.rows[0];
+
+    if (listing)
+    {
+        listing.image = listing.image_data;
+        delete listing.image_data;
+    }
     }
     else
     {
@@ -179,13 +224,17 @@ app.get('/api/listings/:id', async (req, res) =>
 app.post('/api/listings', validateListing, async (req, res) =>
 {
   const { title, description, price, category, image } = req.body;
+  const {photoBytes, mimeType} = req;
   try
   {
     if (database)
     {
       const result = await database.query(
-        'INSERT INTO listings (title, description, price, category, image) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [title.trim(), description.trim(), price, category, image]
+        `INSERT INTO listings
+        (title, description, price, category, image, mime_type)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *`,
+        [title.trim(), description.trim(), price, category, photoBytes, mimeType]
       );
       return res.status(201).json(result.rows[0]);
     }
@@ -208,10 +257,26 @@ app.put('/api/listings/:id', validateListing, async (req, res) =>
     let listing;
     if (database)
     {
-      const result = await database.query(
-        'UPDATE listings SET title = $1, description = $2, price = $3, category = $4, image = $5 WHERE id = $6 RETURNING *',
-        [title.trim(), description.trim(), price, category, image, req.params.id]
-      );
+    const result = await database.query(
+        `UPDATE listings
+        SET title = $1,
+            description = $2,
+            price = $3,
+            category = $4,
+            image = $5,
+            mime_type = $6
+        WHERE id = $7
+        RETURNING *`,
+        [
+            title.trim(),
+            description.trim(),
+            price,
+            category,
+            req.photoBytes,
+            req.mimeType,
+            req.params.id
+        ]
+    );
       listing = result.rows[0];
     }
     else
