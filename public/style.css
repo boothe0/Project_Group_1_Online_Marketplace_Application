@@ -7,7 +7,7 @@ body
 {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #f5efe3;
+  background: white;
   color: #303144;
   line-height: 1.6;
 }
@@ -33,7 +33,9 @@ header a
 {
   color: white;
 }
-
+button{
+  color:#555879;
+}
 .site-name
 {
   font-size: 24px;
@@ -43,7 +45,16 @@ header a
 
 .menu
 {
-  position: relative;
+    position: relative;
+}
+
+details::details-content{
+  opacity: 0;
+  transition: opacity 300ms, content-visibility 300ms allow-discrete;
+}
+
+details[open]::details-content {
+  opacity: 1;
 }
 
 .menu summary
@@ -52,7 +63,7 @@ header a
   border: 1px solid #98a1bc;
   border-radius: 8px;
   color: #555879;
-  background: #f5efe3;
+  background: #CDCEDE;
   list-style: none;
   cursor: pointer;
   font-weight: bold;
@@ -65,7 +76,7 @@ header a
 
 .menu summary:hover, .menu[open] summary
 {
-  background: #f4ebd3;
+  background: #CDCEDE;
 }
 
 .menu-links
@@ -88,7 +99,7 @@ header a
   display: block;
   width: 100%;
   padding: 10px 14px;
-  border-radius: 7px;
+  border-radius: 30px;
   background: white;
   color: #555879;
   text-align: left;
@@ -97,7 +108,8 @@ header a
 
 .menu-links a:hover, .menu-links button:hover:not(:disabled)
 {
-  background: #eeedf4;
+  background: #555879;
+  color: white;
 }
 
 .menu-links form
@@ -155,9 +167,9 @@ h1
 {
   padding: 25px;
   margin-bottom: 25px;
-  border: 1px solid #ded3c4;
+  border: 1px solid #CDCEDE;
   border-radius: 10px;
-  background: #f4ebd3;
+  background: #CDCEDE;
 }
 
 .welcome p

@@ -5,11 +5,12 @@
       <summary>☰ Menu</summary>
       <div class="menu-links">
         <a href="/">Home</a>
-        <a href="/new-listing">New Listing</a>
         <%
           if (user)
           {
         %>
+        <a href="/new-listing">New Listing</a>
+ 
           <a href="/profile">View Profile</a>
           <form action="/logout" method="post">
             <button type="submit">Logout</button>

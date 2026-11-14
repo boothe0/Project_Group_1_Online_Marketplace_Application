@@ -70,7 +70,6 @@ function Homepage()
       setBusyId(null);
     }
   }
-
   async function deleteItem(item)
   {
     if (!window.confirm(`Delete "${item.title}"?`))
@@ -175,7 +174,7 @@ function Homepage()
   return (
     <main>
       <section className="welcome">
-        <h1>Welcome to NAU Market</h1>
+        <h1>Welcome to NAU Market </h1>
         <p>Browse items or create a listing to sell something.</p>
       </section>
       <div className="filters">
