@@ -234,6 +234,24 @@ button:disabled
   box-shadow: 0 4px 14px #3031440d;
 }
 
+<<<<<<< Updated upstream
+=======
+.profile-page.form-page
+{
+  max-width: 1000px;
+}
+
+.profile-overview
+{
+  max-width: 450px;
+}
+
+.profile-listings
+{
+  margin-bottom: 24px;
+}
+
+>>>>>>> Stashed changes
 .form-page button
 {
   width: 100%;
