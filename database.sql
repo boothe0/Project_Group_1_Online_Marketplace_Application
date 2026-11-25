@@ -15,7 +15,13 @@ CREATE TABLE IF NOT EXISTS listings (
 	description TEXT NOT NULL,
 	price DECIMAL (10, 2) NOT NULL,
 	category VARCHAR(50) NOT NULL,
+  seller_id INTEGER REFERENCES users(id),
   mime_type VARCHAR(50),
 	image BYTEA
 );
 
+ALTER TABLE listings
+  ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES users(id);
+
+ALTER TABLE listings
+  ADD COLUMN IF NOT EXISTS sold BOOLEAN NOT NULL DEFAULT FALSE;

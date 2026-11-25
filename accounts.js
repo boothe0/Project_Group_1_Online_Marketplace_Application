@@ -2,7 +2,7 @@
 const { randomBytes } = require('crypto');
 
 // keep account routes together so app.js can focus on listings
-module.exports = function setupAccounts(app, database)
+module.exports = function setupAccounts(app, database, listings)
 {
   const users = [];
   const sessions = new Map();
@@ -186,20 +186,37 @@ module.exports = function setupAccounts(app, database)
     try
     {
       let profile;
+      let profileListings;
       if (database)
       {
         const account = await database.query('SELECT user_id, name, email, bio FROM users WHERE id = $1', [req.user.id]);
         profile = account.rows[0];
+        if (profile)
+        {
+          const result = await database.query(`
+            SELECT id, title, description, price, category,
+              CASE
+                WHEN image IS NOT NULL
+                THEN 'data:' || mime_type || ';base64,' || encode(image, 'base64')
+                ELSE NULL
+              END AS image
+            FROM listings
+            WHERE seller_id = $1
+            ORDER BY id DESC
+          `, [req.user.id]);
+          profileListings = result.rows;
+        }
       }
       else
       {
         profile = users.find((user) => user.id === req.user.id);
+        profileListings = listings.filter((listing) => listing.seller_id === req.user.id);
       }
       if (!profile)
       {
         return res.redirect('/signin');
       }
-      res.status(status).render('profile', { profile, message });
+      res.status(status).render('profile', { profile, listings: profileListings, message });
     }
     catch (error)
     {

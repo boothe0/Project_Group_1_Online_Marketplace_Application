@@ -20,7 +20,10 @@ else
   database = null;
 }
 const listings = [];
+const transactionReviews = new Map();
+const listingComments = new Map();
 let nextListingId = 1;
+let nextCommentId = 1;
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -29,7 +32,7 @@ app.use(express.json({ limit: '2mb' }));
 // the profile bio uses a regular html form
 app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-setupAccounts(app, database);
+setupAccounts(app, database, listings);
 
 // each page has its own ejs file in the views folder
 app.get('/', (req, res) =>
@@ -54,7 +57,11 @@ app.get('/signup', (req, res) =>
 });
 app.get('/new-listing', (req, res) =>
 {
-  res.render('new-listing');
+  if (!req.user)
+  {
+    return res.redirect('/signin');
+  }
+  res.render('new-listing', { user: req.user });
 });
 
 // these files let us use react and jsx
@@ -80,7 +87,8 @@ app.get('/api/listings', async (req, res) =>
         if (database)
         {
             const result = await database.query(`
-                SELECT *,
+                SELECT listings.*,
+                        users.user_id AS user,
                     CASE
                         WHEN image IS NOT NULL
                         THEN 'data:' || mime_type || ';base64,' ||
@@ -88,7 +96,8 @@ app.get('/api/listings', async (req, res) =>
                         ELSE NULL
                     END AS image_data
                 FROM listings
-                ORDER BY id DESC
+                LEFT JOIN users ON listings.seller_id = users.id
+                ORDER BY listings.id DESC
             `);
 
             return res.json(result.rows.map((item) => ({
@@ -175,6 +184,11 @@ app.param('id', (req, res, next, id) =>
   next();
 });
 
+app.get('/listings/:id/comments', (req, res) =>
+{
+  res.render('comments', { listingId: Number(req.params.id) });
+});
+
 // get listing to fill in the update form
 app.get('/api/listings/:id', async (req, res) =>
 {
@@ -184,7 +198,8 @@ app.get('/api/listings/:id', async (req, res) =>
     if (database)
     {
     const result = await database.query(
-        `SELECT *,
+        `SELECT listings.*,
+            users.user_id AS user,
             CASE
                 WHEN image IS NOT NULL
                 THEN 'data:' || mime_type || ';base64,' ||
@@ -192,7 +207,8 @@ app.get('/api/listings/:id', async (req, res) =>
                 ELSE NULL
             END AS image_data
         FROM listings
-        WHERE id = $1`,
+        LEFT JOIN users ON listings.seller_id = users.id
+        WHERE listings.id = $1`,
         [req.params.id]
     );
 
@@ -220,8 +236,100 @@ app.get('/api/listings/:id', async (req, res) =>
   }
 });
 
+app.get('/api/listings/:id/comments', async (req, res) =>
+{
+  try
+  {
+    let listing;
+    if (database)
+    {
+      const result = await database.query(
+        'SELECT id, title FROM listings WHERE id = $1',
+        [req.params.id]
+      );
+      listing = result.rows[0];
+    }
+    else
+    {
+      listing = listings.find((item) => item.id === Number(req.params.id));
+    }
+    if (!listing)
+    {
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+    res.json({
+      listing: { id: listing.id, title: listing.title },
+      comments: listingComments.get(Number(req.params.id)) || [],
+      canComment: Boolean(req.user)
+    });
+  }
+  catch (error)
+  {
+    console.error(error);
+    res.status(500).json({ error: 'Could not load comments for this listing.' });
+  }
+});
+
+app.post('/api/listings/:id/comments', async (req, res) =>
+{
+  if (!req.user)
+  {
+    return res.status(401).json({ error: 'Sign in to post a comment.' });
+  }
+  const { text } = req.body || {};
+  if (typeof text !== 'string' || text.trim() === '' || text.trim().length > 2000)
+  {
+    return res.status(400).json({ error: 'Enter a comment up to 2000 characters.' });
+  }
+
+  try
+  {
+    let listingExists;
+    if (database)
+    {
+      const result = await database.query(
+        'SELECT id FROM listings WHERE id = $1',
+        [req.params.id]
+      );
+      listingExists = result.rows.length > 0;
+    }
+    else
+    {
+      listingExists = listings.some((item) => item.id === Number(req.params.id));
+    }
+    if (!listingExists)
+    {
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+
+    const comment = {
+      id: nextCommentId++,
+      author: req.user.user_id,
+      text: text.trim(),
+      createdAt: new Date().toISOString()
+    };
+    const listingId = Number(req.params.id);
+    const comments = listingComments.get(listingId) || [];
+    comments.push(comment);
+    listingComments.set(listingId, comments);
+    res.status(201).json({ comment });
+  }
+  catch (error)
+  {
+    console.error(error);
+    res.status(500).json({ error: 'Could not post your comment.' });
+  }
+});
+
 // save new listing
-app.post('/api/listings', validateListing, async (req, res) =>
+app.post('/api/listings', (req, res, next) =>
+{
+  if (!req.user)
+  {
+    return res.status(401).json({ error: 'Sign in before creating a listing.' });
+  }
+  next();
+}, validateListing, async (req, res) =>
 {
   const { title, description, price, category, image } = req.body;
   const {photoBytes, mimeType} = req;
@@ -231,14 +339,14 @@ app.post('/api/listings', validateListing, async (req, res) =>
     {
       const result = await database.query(
         `INSERT INTO listings
-        (title, description, price, category, image, mime_type)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        (title, description, price, category, image, mime_type, seller_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *`,
-        [title.trim(), description.trim(), price, category, photoBytes, mimeType]
+        [title.trim(), description.trim(), price, category, photoBytes, mimeType, req.user.id]
       );
-      return res.status(201).json(result.rows[0]);
+      return res.status(201).json({ ...result.rows[0], user: req.user.user_id });
     }
-    const listing = { id: nextListingId++, title: title.trim(), description: description.trim(), price: Number(Number(price).toFixed(2)), category, image, sold: false };
+    const listing = { id: nextListingId++, title: title.trim(), description: description.trim(), price: Number(Number(price).toFixed(2)), category, image, sold: false, user: req.user.user_id, seller_id: req.user.id };
     listings.unshift(listing);
     res.status(201).json(listing);
   }
@@ -339,6 +447,63 @@ app.post('/api/listings/:id/buy', async (req, res) =>
   catch (error)
   {
     res.status(500).json({ error: 'Could not mark the item as sold. Check that your database table is up to date.' });
+  }
+});
+
+// accept one in-memory review for a sold listing until transactions are added
+app.post('/api/transactions/:id/review', async (req, res) =>
+{
+  const { rating, feedback } = req.body || {};
+  const numericRating = Number(rating);
+  if (!Number.isFinite(numericRating) || numericRating < 0.5 || numericRating > 5 ||
+      numericRating * 2 !== Math.round(numericRating * 2))
+  {
+    return res.status(400).json({ error: 'Choose a rating from 0.5 to 5 stars in half-star increments.' });
+  }
+  if (typeof feedback !== 'string' || feedback.trim() === '' || feedback.trim().length > 1000)
+  {
+    return res.status(400).json({ error: 'Enter feedback up to 1000 characters.' });
+  }
+  if (transactionReviews.has(Number(req.params.id)))
+  {
+    return res.status(409).json({ error: 'A review has already been submitted for this transaction.' });
+  }
+
+  try
+  {
+    let listing;
+    if (database)
+    {
+      const result = await database.query(
+        'SELECT id, sold FROM listings WHERE id = $1',
+        [req.params.id]
+      );
+      listing = result.rows[0];
+    }
+    else
+    {
+      listing = listings.find((item) => item.id === Number(req.params.id));
+    }
+    if (!listing)
+    {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+    if (!listing.sold)
+    {
+      return res.status(409).json({ error: 'A review can only be submitted after the item is sold.' });
+    }
+
+    const review = {
+      transactionId: Number(req.params.id),
+      rating: numericRating,
+      feedback: feedback.trim()
+    };
+    transactionReviews.set(review.transactionId, review);
+    res.status(201).json({ message: 'Review submitted.', review });
+  }
+  catch (error)
+  {
+    res.status(500).json({ error: 'Could not submit the review.' });
   }
 });
 

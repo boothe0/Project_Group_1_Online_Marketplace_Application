@@ -8,24 +8,48 @@
 </head>
 <body>
   <%- include('header') %>
-  <main class="form-page">
-    <div class="profile-avatar" aria-hidden="true"><%= profile.name.charAt(0).toUpperCase() %></div>
-    <h1><%= profile.name %>’s Profile</h1>
-    <p class="intro">Your NAU Market account details.</p>
-    <dl class="profile-details">
-      <dt>User ID</dt>
-      <dd><%= profile.user_id %></dd>
-      <dt>Name</dt>
-      <dd><%= profile.name %></dd>
-      <dt>Email</dt>
-      <dd><%= profile.email %></dd>
-    </dl>
-    <form action="/profile" method="post">
-      <label for="bio">Bio</label>
-      <textarea id="bio" name="bio" rows="5" maxlength="500" placeholder="Tell other students a little about yourself."><%= profile.bio %></textarea>
-      <button type="submit">Save Bio</button>
-      <p role="status"><%= message %></p>
-    </form>
+  <main class="form-page profile-page">
+    <div class="profile-overview">
+      <div class="profile-avatar" aria-hidden="true"><%= profile.name.charAt(0).toUpperCase() %></div>
+      <h1><%= profile.name %>’s Profile</h1>
+      <p class="intro">Your NAU Market account details.</p>
+      <dl class="profile-details">
+        <dt>User ID</dt>
+        <dd><%= profile.user_id %></dd>
+        <dt>Name</dt>
+        <dd><%= profile.name %></dd>
+        <dt>Email</dt>
+        <dd><%= profile.email %></dd>
+      </dl>
+      <form action="/profile" method="post">
+        <label for="bio">Bio</label>
+        <textarea id="bio" name="bio" rows="5" maxlength="500" placeholder="Tell other students a little about yourself."><%= profile.bio %></textarea>
+        <button type="submit">Save Bio</button>
+        <p role="status"><%= message %></p>
+      </form>
+    </div>
+    <section class="profile-listings">
+      <h2>Your Listings</h2>
+      <% if (listings.length === 0) { %>
+        <p>You have not posted any listings yet.</p>
+      <% } else { %>
+        <div class="item-list profile-listings-grid">
+          <% listings.forEach((listing) => { %>
+            <article class="item-card">
+              <% if (listing.image) { %>
+                <img src="<%= listing.image %>" alt="<%= listing.title %>">
+              <% } %>
+              <p class="item-price">$<%= Number(listing.price).toFixed(2) %></p>
+              <h3><%= listing.title %></h3>
+              <p class="item-description"><%= listing.description %></p>
+              <div class="item-info">
+                <span><%= listing.category %></span>
+              </div>
+            </article>
+          <% }); %>
+        </div>
+      <% } %>
+    </section>
     <a href="/">Back To The Marketplace</a>
   </main>
 </body>
