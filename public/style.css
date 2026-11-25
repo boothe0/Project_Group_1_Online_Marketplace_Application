@@ -256,6 +256,11 @@ button:disabled
   max-width: 450px;
 }
 
+.profile-listings
+{
+  margin-bottom: 24px;
+}
+
 .form-page button
 {
   width: 100%;
