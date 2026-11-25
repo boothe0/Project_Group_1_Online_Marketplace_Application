@@ -17,11 +17,15 @@ function NewListing()
     {
       try
       {
-        const response = await fetch(`/api/listings/${id}`);
+        const response = await fetch(`/api/listings/${encodeURIComponent(id)}`);
         const data = await response.json();
         if (!response.ok)
         {
           throw new Error(data.error);
+        }
+        if (!data.canEdit)
+        {
+          throw new Error('Only the seller can edit this listing.');
         }
         setItem(data);
       }
@@ -45,7 +49,7 @@ function NewListing()
       let method;
       if (id)
       {
-        url = `/api/listings/${id}`;
+        url = `/api/listings/${encodeURIComponent(id)}`;
         method = 'PUT';
       }
       else
@@ -94,22 +98,11 @@ function NewListing()
       return;
     }
 
-    let currentImage;
-    if (item)
-    {
-      currentImage = item.image;
-    }
-    else
-    {
-      currentImage = '';
-    }
-
     const listing = {
       title: fields.title.value,
       description: fields.description.value,
       price: fields.price.value,
-      category: fields.category.value,
-      image: currentImage
+      category: fields.category.value
     };
     setSaving(true);
     setMessage('');
@@ -191,7 +184,10 @@ function NewListing()
       ...item,
       user: document.getElementById('root').dataset.userId
     };
-    photoPreview = <img className="photo-preview" src={item.image} alt="Current listing photo" />;
+    if (item.image)
+    {
+      photoPreview = <img className="photo-preview" src={item.image} alt="Current listing photo" />;
+    }
   }
 
   return (

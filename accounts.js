@@ -2,7 +2,7 @@
 const { randomBytes } = require('crypto');
 
 // keep account routes together so app.js can focus on listings
-module.exports = function setupAccounts(app, database, listings)
+module.exports = function setupAccounts(app, database, listings, transactionReviews)
 {
   const users = [];
   const sessions = new Map();
@@ -176,66 +176,129 @@ module.exports = function setupAccounts(app, database, listings)
     res.redirect(303, '/');
   });
 
-  async function showProfile(req, res, message = '', status = 200)
+  async function loadProfile(userId, includeEmail)
+  {
+    let account;
+    if (database)
+    {
+      const result = await database.query(
+        'SELECT id, user_id, name, email, bio FROM users WHERE user_id = $1',
+        [userId]
+      );
+      account = result.rows[0];
+    }
+    else
+    {
+      account = findUserByUserId(userId);
+    }
+    if (!account)
+    {
+      return null;
+    }
+
+    const profile = { user_id: account.user_id, name: account.name, bio: account.bio };
+    if (includeEmail)
+    {
+      profile.email = account.email;
+    }
+
+    let profileListings;
+    if (database)
+    {
+      const result = await database.query(`
+        SELECT listings.id, title, description, price, category, sold,
+          'data:' || mime_type || ';base64,' || replace(encode(image, 'base64'), chr(10), '') AS image,
+          CASE WHEN reviews.listing_id IS NOT NULL
+            THEN json_build_object('rating', reviews.rating, 'feedback', reviews.feedback)
+          END AS review
+        FROM listings
+        LEFT JOIN reviews ON reviews.listing_id = listings.id
+        WHERE listings.seller_id = $1
+        ORDER BY listings.id DESC
+      `, [account.id]);
+      profileListings = result.rows;
+    }
+    else
+    {
+      profileListings = listings
+        .filter((listing) => listing.seller_id === account.id)
+        .map(({ id, title, description, price, category, image, sold }) =>
+        {
+          const savedReview = transactionReviews.get(id);
+          const review = savedReview ? { rating: savedReview.rating, feedback: savedReview.feedback } : null;
+          return { id, title, description, price, category, image, sold, review };
+        });
+    }
+    return { profile, listings: profileListings };
+  }
+
+  async function sendProfile(res, userId, includeEmail)
   {
     res.set('Cache-Control', 'no-store');
-    if (!req.user)
-    {
-      return res.redirect('/signin');
-    }
     try
     {
-      let profile;
-      let profileListings;
-      if (database)
+      const data = await loadProfile(userId, includeEmail);
+      if (!data)
       {
-        const account = await database.query('SELECT user_id, name, email, bio FROM users WHERE id = $1', [req.user.id]);
-        profile = account.rows[0];
-        if (profile)
-        {
-          const result = await database.query(`
-            SELECT id, title, description, price, category,
-              CASE
-                WHEN image IS NOT NULL
-                THEN 'data:' || mime_type || ';base64,' || encode(image, 'base64')
-                ELSE NULL
-              END AS image
-            FROM listings
-            WHERE seller_id = $1
-            ORDER BY id DESC
-          `, [req.user.id]);
-          profileListings = result.rows;
-        }
+        return res.status(404).json({ error: 'Profile not found.' });
       }
-      else
-      {
-        profile = users.find((user) => user.id === req.user.id);
-        profileListings = listings.filter((listing) => listing.seller_id === req.user.id);
-      }
-      if (!profile)
-      {
-        return res.redirect('/signin');
-      }
-      res.status(status).render('profile', { profile, listings: profileListings, message });
+      res.json(data);
     }
     catch (error)
     {
-      res.status(500).send('Could not load your profile.');
+      res.status(500).json({ error: 'Could not load the profile.' });
+    }
+  }
+
+  app.get('/api/profile', (req, res) =>
+  {
+    if (!req.user)
+    {
+      return res.status(401).json({ error: 'Sign in to view your profile.' });
+    }
+    return sendProfile(res, req.user.user_id, true);
+  });
+
+  app.get('/api/users/:userId', (req, res) =>
+  {
+    return sendProfile(res, req.params.userId, false);
+  });
+
+  async function showProfile(req, res, userId, message = '', status = 200)
+  {
+    res.set('Cache-Control', 'no-store');
+    const isOwnProfile = Boolean(req.user && req.user.user_id === userId);
+    try
+    {
+      const data = await loadProfile(userId, isOwnProfile);
+      if (!data)
+      {
+        return res.status(404).send('Profile not found.');
+      }
+      res.status(status).render('profile', { ...data, isOwnProfile, message });
+    }
+    catch (error)
+    {
+      res.status(500).send('Could not load the profile.');
     }
   }
 
   app.get('/profile', (req, res) =>
   {
-    let message;
-    if (req.query.saved === '1')
+    if (req.query.user !== undefined)
     {
-      message = 'Bio Saved!';
+      if (typeof req.query.user !== 'string' || !req.query.user || req.query.user.length > 50)
+      {
+        return res.status(400).send('Invalid user ID.');
+      }
+      return showProfile(req, res, req.query.user);
     }
-    else
+    if (!req.user)
     {
-      message = '';
+      return res.redirect('/signin');
     }
-    showProfile(req, res, message);
+    const message = req.query.saved === '1' ? 'Bio Saved!' : '';
+    return showProfile(req, res, req.user.user_id, message);
   });
 
   app.post('/profile', async (req, res) =>
@@ -247,7 +310,7 @@ module.exports = function setupAccounts(app, database, listings)
     const { bio } = req.body || {};
     if (typeof bio !== 'string' || bio.length > 500)
     {
-      return showProfile(req, res, 'Keep your bio to 500 characters or less.', 400);
+      return showProfile(req, res, req.user.user_id, 'Keep your bio to 500 characters or less.', 400);
     }
     try
     {
@@ -264,7 +327,7 @@ module.exports = function setupAccounts(app, database, listings)
     }
     catch (error)
     {
-      showProfile(req, res, 'Could not save your bio. Please try again.', 500);
+      return showProfile(req, res, req.user.user_id, 'Could not save your bio. Please try again.', 500);
     }
   });
 };

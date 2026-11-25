@@ -12,7 +12,7 @@
 </head>
 <body>
   <%- include('header') %>
-  <div id="root"></div>
+  <div id="root" data-signed-in="<%= Boolean(user) %>"></div>
 
 </body>
 </html>
