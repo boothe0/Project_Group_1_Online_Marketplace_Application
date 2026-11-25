@@ -177,11 +177,20 @@ function NewListing()
   }
 
   // start with empty fields, or use the existing item when editing
-  let formValues = { title: '', description: '', price: '', category: '' };
+  let formValues = {
+    title: '',
+    description: '',
+    price: '',
+    category: '',
+    user: document.getElementById('root').dataset.userId
+  };
   let photoPreview = null;
   if (item)
   {
-    formValues = item;
+    formValues = {
+      ...item,
+      user: document.getElementById('root').dataset.userId
+    };
     photoPreview = <img className="photo-preview" src={item.image} alt="Current listing photo" />;
   }
 
@@ -195,6 +204,9 @@ function NewListing()
 
         <label htmlFor="description">Description</label>
         <textarea id="description" name="description" defaultValue={formValues.description} rows="4" maxLength="2000" required />
+        
+        <label htmlFor="user">User</label>
+        <input id="user" name="user" type="text" value={formValues.user} readOnly />
 
         <label htmlFor="price">Price ($)</label>
         <input id="price" name="price" type="number" defaultValue={formValues.price} min="0" max="999999.99" step="0.01" required />
@@ -212,7 +224,7 @@ function NewListing()
         {photoPreview}
         <label htmlFor="image">{photoLabel} (JPG, PNG, or WebP, up to 1 MB)</label>
         <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required={photoRequired} />
-
+        
         <button type="submit" disabled={saving}>{buttonText}</button>
         <p role="status">{message}</p>
       </form>
